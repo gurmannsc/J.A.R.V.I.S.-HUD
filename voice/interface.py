@@ -12,6 +12,7 @@ import queue
 import sys
 import threading
 import time
+from typing import Callable
 
 from common.types import Command
 from voice import commands
@@ -24,6 +25,18 @@ class BaseVoiceInterface:
     def __init__(self, mute: bool = False) -> None:
         self._queue: queue.Queue[Command] = queue.Queue()
         self.tts = TTS(enabled=not mute)
+        self.wake_reply = lambda: self.say("Yes, sir?")   # the app may swap this for a personalised one
+        self._ask: tuple[str, Callable[[str], None]] | None = None
+
+    def ask_text(self, prompt: str, callback: Callable[[str], None]) -> None:
+        """Read one line from the terminal (on a background thread) and hand it to callback."""
+        def _read() -> None:
+            try:
+                answer = input(prompt)
+            except (EOFError, OSError):
+                answer = ""
+            callback(answer.strip())
+        threading.Thread(target=_read, name="ask-text", daemon=True).start()
 
     def start(self) -> None:
         self.tts.start()
@@ -75,8 +88,18 @@ class TypedVoiceInterface(BaseVoiceInterface):
         threading.Thread(target=self._read_loop, name="typed-voice", daemon=True).start()
         print("[voice] typed mode - enter a command (e.g. 'find the edges', 'night vision', 'quit'):")
 
+    def ask_text(self, prompt: str, callback: Callable[[str], None]) -> None:
+        # stdin is owned by the reader thread: route the next line to the callback instead
+        print(prompt, end="", flush=True)
+        self._ask = (prompt, callback)
+
     def _read_loop(self) -> None:
         for line in sys.stdin:
+            if self._ask is not None:
+                _, callback = self._ask
+                self._ask = None
+                callback(line.strip())
+                continue
             if line.strip():
                 self.submit_text(line)
 
@@ -101,7 +124,7 @@ class VoiceInterface(BaseVoiceInterface):
                  echo: bool = False) -> None:
         super().__init__(mute=mute)
         self.echo = echo   # print every transcript (debugging)
-        self.gate = WakeGate(on_command=self._on_command, on_wake=lambda: self.say("Yes?"),
+        self.gate = WakeGate(on_command=self._on_command, on_wake=lambda: self.wake_reply(),
                              on_timeout=lambda: print("[voice] standing by - say 'Hey Jarvis' to continue"))
         self.listener = Listener(self._on_text, grammar=grammar_phrases() if use_grammar else None,
                                  device=device)

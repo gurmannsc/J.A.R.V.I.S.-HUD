@@ -92,6 +92,37 @@ def draw_target_readout(cv: Canvas, box: Box, index: int, lines: list[str], lock
         cv.text(s, (bx, by + 10 + 15 * (i + 1)), config.HUD_CYAN, 0.38)
 
 
+def draw_name_tag(cv: Canvas, box: Box, name: str, recognition: bool, tick: int) -> None:
+    """Name plate above the face box: recognised name in white, else UNKNOWN (or nothing
+    when recognition is off)."""
+    if not recognition:
+        return
+    x, y, w, h = box
+    pad = max(w // 12, 4)
+    label = name.upper() if name else "UNKNOWN"
+    colour = config.HUD_WHITE if name else config.HUD_CYAN_DIM
+    tw = text_width(label, 0.55, 1)
+    tx, ty = x + w // 2 - tw // 2, y - pad - 14
+    if ty < 84:                      # too close to the azimuth strip: hang the tag below the box
+        ty = min(y + h + pad + 22, cv.h - 60)
+    cv.line((tx - 8, ty + 6), (tx + tw + 8, ty + 6), "primary" if name else "dim", 1)
+    cv.text(label, (tx, ty), colour, 0.55, 1)
+
+
+def draw_enrolling(cv: Canvas, done: int, total: int, tick: int) -> None:
+    """Centre banner with a progress bar while face samples are being captured."""
+    w, h = cv.w, cv.h
+    label = "ENROLLING  HOLD STILL" if done < total else "SAMPLES CAPTURED  -  TYPE YOUR NAME IN THE TERMINAL"
+    tw = text_width(label, 0.55, 1)
+    cv.text(label, (w // 2 - tw // 2, h - 70), config.HUD_ORANGE, 0.55, 1)
+    bar_w = 200
+    x0, y0 = w // 2 - bar_w // 2, h - 60
+    cv.rect((x0, y0), (x0 + bar_w, y0 + 6), "dim", 1)
+    fill = int(bar_w * min(done, total) / total)
+    if fill:
+        cv.fill_rect((x0, y0), (x0 + fill, y0 + 6), "accent")
+
+
 def draw_flow(cv: Canvas, flow: list[tuple[Point, Point]]) -> None:
     """Tracked feature points and their motion vectors (Unit 8)."""
     for (x0, y0), (x1, y1) in flow:

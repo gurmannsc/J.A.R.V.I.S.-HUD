@@ -6,7 +6,7 @@ brackets). Face the camera; wait for `TARGET LOCKED`.
 
 | # | Say ("Hey Jarvis, …") | Key | What to point out | Unit |
 |---|---|---|---|---|
-| 1 | — (live feed) | | Frame is a 640×480×3 uint8 array; panel shows FPS; reticle, radar and panel are alpha-blended per pixel; distance from the pinhole model; the `I` / `P` tag flips every 5 frames and the green dots are optical-flow features | 1, 8 |
+| 1 | — (live feed) | | Frame is a 640×480×3 uint8 array; panel shows FPS; reticle, radar and panel are alpha-blended per pixel; distance from the pinhole model; the `I` / `P` tag flips every 5 frames and the dots are optical-flow features. If you enrolled beforehand ("remember me"), JARVIS greets you by name | 1, 8 |
 | 2 | *night vision* | `n` | Grayscale → CLAHE (histogram) → gamma LUT (point op) → green tint (colour). Say *night vision* again to turn it off | 2, 7 |
 | 3 | *enhance this* | `a` | Before/after luma histograms — equalisation spreads the histogram across 0–255 | 2 |
 | 4 | *show me its frequency spectrum* | `f` | Centred log-magnitude DFT; straight edges in the room → streaks through the centre | 3 |

@@ -24,17 +24,19 @@ class FaceTracker:
         self.prev_gray: np.ndarray | None = None
         self.boxes: list[Box] = []
         self.points: list[np.ndarray] = []  # per box: (N, 1, 2) float32
+        self.tags: list[object] = []        # caller data carried with each box (e.g. identity)
         self.flow: list[tuple[tuple[int, int], tuple[int, int]]] = []  # (from, to) for display
 
     @property
     def active(self) -> bool:
         return bool(self.boxes)
 
-    def reset(self, gray: np.ndarray, boxes: list[Box]) -> None:
+    def reset(self, gray: np.ndarray, boxes: list[Box], tags: list[object] | None = None) -> None:
         """Seed features inside each detected box (inner 80 % so we avoid background corners)."""
         self.prev_gray = gray
-        self.boxes, self.points, self.flow = [], [], []
-        for (x, y, w, h) in boxes:
+        self.boxes, self.points, self.tags, self.flow = [], [], [], []
+        tags = tags if tags is not None else [None] * len(boxes)
+        for (x, y, w, h), tag in zip(boxes, tags):
             mask = np.zeros_like(gray)
             mx, my = int(w * 0.1), int(h * 0.1)
             mask[y + my:y + h - my, x + mx:x + w - mx] = 255
@@ -42,13 +44,14 @@ class FaceTracker:
             if pts is not None and len(pts) >= self.min_points:
                 self.boxes.append((x, y, w, h))
                 self.points.append(pts.astype(np.float32))
+                self.tags.append(tag)
 
     def update(self, gray: np.ndarray) -> list[Box]:
         """Propagate every box one frame forward; boxes with too few survivors are dropped."""
         if self.prev_gray is None or not self.boxes:
             return []
-        new_boxes, new_points, flow = [], [], []
-        for box, pts in zip(self.boxes, self.points):
+        new_boxes, new_points, new_tags, flow = [], [], [], []
+        for box, pts, tag in zip(self.boxes, self.points, self.tags):
             nxt, status, err = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray, pts, None, **LK_PARAMS)
             if nxt is None:
                 continue
@@ -60,8 +63,9 @@ class FaceTracker:
             x, y, w, h = box
             new_boxes.append((int(round(x + dx)), int(round(y + dy)), w, h))
             new_points.append(dst)
+            new_tags.append(tag)
             flow.extend(((int(a[0]), int(a[1])), (int(b[0]), int(b[1])))
                         for a, b in zip(src.reshape(-1, 2), dst.reshape(-1, 2)))
         self.prev_gray = gray
-        self.boxes, self.points, self.flow = new_boxes, new_points, flow
+        self.boxes, self.points, self.tags, self.flow = new_boxes, new_points, new_tags, flow
         return list(self.boxes)

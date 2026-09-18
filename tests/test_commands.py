@@ -57,7 +57,7 @@ def test_kinds_and_replies() -> None:
     assert commands.match("edges").kind is CommandKind.ONESHOT
     assert commands.match("night vision").kind is CommandKind.TOGGLE
     assert commands.match("quit").kind is CommandKind.SYSTEM
-    assert commands.reply_for("edges") == "Edges located."
+    assert commands.reply_for("edges") == "Edges located, sir."
     assert commands.reply_for("nope") == ""
 
 

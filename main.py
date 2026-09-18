@@ -13,6 +13,7 @@ HUD overlay (or frozen one-shot result while holding) -> show.
 from __future__ import annotations
 
 import argparse
+import queue
 import time
 import traceback
 from datetime import datetime
@@ -46,6 +47,8 @@ KEYMAP: dict[str, str] = {
     "r": "radar",
     "m": "motion_alert",
     "p": "snapshot",
+    "u": "enrol",
+    "w": "whoami",
     "0": "reset",
     "?": "help",
     "q": "quit",
@@ -53,6 +56,7 @@ KEYMAP: dict[str, str] = {
 }
 ESC = 27
 NOTICE_SECONDS = 4.0
+GREET_COOLDOWN_S = 120.0
 HIDDEN_FROM_HELP = {"identity", "help"}
 
 
@@ -76,7 +80,15 @@ class App:
         self.held: tuple[Frame, str, float, float] | None = None
         # (text, expiry) — JARVIS's last reply, shown on the HUD so the audience can read it
         self.notice: tuple[str, float] | None = None
+        self.greeted: dict[str, float] = {}          # name -> last greeting time
+        self.enrol_prompted = False
+        self.pending: queue.Queue = queue.Queue()     # callables handed over from other threads
+        self.voice.wake_reply = lambda: self.say("Yes, sir?")
         config.CAPTURES_DIR.mkdir(exist_ok=True)
+        if self.hud.recognition_enabled:
+            print(f"[faces] recognition on; known: {', '.join(self.hud.known_names()) or 'nobody yet'}")
+        else:
+            print("[faces] recognition off (run tools/get_model.py faces to enable)")
 
     # ------------------------------------------------------------------ loop
 
@@ -100,9 +112,12 @@ class App:
                 if cmd is not None:
                     self.dispatch(cmd, frame)
                 self.state.listening = self.voice.listening
+                while not self.pending.empty():      # work handed over from other threads
+                    self.pending.get_nowait()()
 
                 # keep the tracker / motion detector warm even while a result is frozen
                 live = self.hud.process(frame, self.state)
+                self._recognition_step()
                 if self.calibrating:
                     self._calibration_step(live, key)
 
@@ -131,12 +146,45 @@ class App:
             return None
         return commands.match(name)
 
+    @property
+    def primary_name(self) -> str:
+        return self.state.names[0] if self.state.names else ""
+
     def say(self, text: str) -> None:
-        """Speak/print via the voice interface and show the line on the HUD for a moment."""
+        """Speak/print via the voice interface and show the line on the HUD for a moment.
+        "sir" becomes the recognised person's name when JARVIS knows who is in front of him."""
         if not text:
             return
+        if self.primary_name:
+            text = text.replace("sir", self.primary_name)
         self.voice.say(text)
         self.notice = (text, time.monotonic() + NOTICE_SECONDS)
+
+    # ----------------------------------------------------------- recognition
+
+    def _recognition_step(self) -> None:
+        """Greet a recognised person once in a while; drive the enrolment prompt."""
+        name = self.primary_name
+        now = time.monotonic()
+        if name and self.state.enrolling < 0 and now - self.greeted.get(name, -1e9) > GREET_COOLDOWN_S:
+            self.greeted[name] = now
+            self.say(f"Welcome back, {name}.")
+
+        if self.state.enrolling >= 0 and self.hud.enrol_ready() and not self.enrol_prompted:
+            self.enrol_prompted = True
+            self.say("Captured. What is your name? Type it in the terminal.")
+            self.voice.ask_text("[faces] name: ", lambda answer: self.pending.put(lambda: self._finish_enrol(answer)))
+
+    def _finish_enrol(self, name: str) -> None:
+        self.enrol_prompted = False
+        if not name:
+            self.hud.cancel_enrol()
+            self.say("Enrolment cancelled.")
+            return
+        n = self.hud.finish_enrol(name)
+        self.greeted[name.title()] = time.monotonic()
+        print(f"[faces] stored {n} samples for {name.title()}; known: {', '.join(self.hud.known_names())}")
+        self.say(f"Pleasure to meet you, {name.title()}. I will remember you.")
 
     # -------------------------------------------------------------- dispatch
 
@@ -154,7 +202,7 @@ class App:
         if new_value and name in ("night_vision", "thermal"):   # base modes are exclusive
             other = "thermal" if name == "night_vision" else "night_vision"
             setattr(self.state, other, False)
-        self.say(f"{name.replace('_', ' ').capitalize()} {'on' if new_value else 'off'}.")
+        self.say(f"{name.replace('_', ' ').capitalize()} {'on' if new_value else 'off'}, sir.")
 
     def _oneshot(self, name: str, frame: Frame) -> None:
         if name not in registry.EFFECTS:
@@ -190,6 +238,32 @@ class App:
             print(f"[snapshot] {path.name}: {stats}")
             self.say("Captured.")
             self.notice = (f"SNAPSHOT  {stats}", time.monotonic() + NOTICE_SECONDS * 2)
+        elif name == "enrol":
+            if not self.hud.recognition_enabled:
+                self.say("Face recognition models are not installed.")
+            elif not self.state.faces:
+                self.say("I need to see a face first.")
+            elif self.state.enrolling >= 0:
+                self.say("Already capturing. Hold still.")
+            else:
+                self.enrol_prompted = False
+                self.hud.start_enrol()
+                self.say(commands.reply_for("enrol"))
+        elif name == "whoami":
+            if not self.hud.recognition_enabled:
+                self.say("Face recognition models are not installed.")
+            elif not self.state.faces:
+                self.say("I don't see anyone.")
+            else:
+                known = [n for n in self.state.names if n]
+                if known:
+                    self.say("I see " + " and ".join(dict.fromkeys(known)) + ".")
+                else:
+                    self.say("I don't recognise you. Say 'remember me' and I will.")
+        elif name == "forget":
+            self.hud.forget()
+            self.greeted.clear()
+            self.say(commands.reply_for("forget"))
         elif name == "help":
             names = [s.name for s in commands.VOCABULARY
                      if s.name not in HIDDEN_FROM_HELP

@@ -38,3 +38,5 @@ class HUDState:
     frame_type: str = "I"  # "I" on detection frames, "P" on optical-flow-tracked frames
     listening: float = 0.0  # seconds left in the voice command window (0 = waiting for wake word)
     faces: list[tuple[int, int, int, int]] = field(default_factory=list)  # (x, y, w, h)
+    names: list[str] = field(default_factory=list)   # recognised name per face ("" = unknown)
+    enrolling: int = -1     # samples captured so far while enrolling a face; -1 = not enrolling

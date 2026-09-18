@@ -9,6 +9,8 @@ the frame, runs the effect, and JARVIS talks back.
 - Live face detection with a targeting reticle, optical-flow tracking between detections,
   radar sweep, distance readout, night-vision and thermal modes, motion alert
 - Wake word + offline speech recognition (Vosk), fuzzy command matching, spoken replies
+- Face recognition (YuNet + SFace): enrol with "remember me", then JARVIS greets you by
+  name and addresses you by it instead of "sir"
 - One-shot image-processing effects: x-ray, sketch, cartoon, DFT spectrum, frequency-domain
   smooth/sharpen, Canny/Sobel edges, GrabCut background removal, HSV skin segmentation,
   histogram equalisation, thermal
@@ -25,15 +27,19 @@ python -m venv .venv
 
 OpenCV is pinned to 4.x: OpenCV 5 removed `CascadeClassifier` and the bundled Haar files.
 
-### Speech model (optional — the app falls back to typed commands without it)
+### Models (optional — the app degrades gracefully without them)
 
 ```bash
 .\.venv\Scripts\python.exe tools/get_model.py
 ```
 
-This fetches `vosk-model-small-en-us-0.15` (~41 MB) from alphacephei.com into `assets/`.
-If that host is blocked on your network, download the zip in a browser and unzip it so
-that `assets/vosk-model-small-en-us-0.15/am/final.mdl` exists.
+Fetches everything missing into `assets/`:
+- `vosk-model-small-en-us-0.15` (~41 MB, alphacephei.com) — speech. Without it the app
+  falls back to typed commands. If the host is blocked on your network, download the zip in
+  a browser and unzip it so `assets/vosk-model-small-en-us-0.15/am/final.mdl` exists.
+- `face_detection_yunet_2023mar.onnx` (230 KB) and `face_recognition_sface_2021dec.onnx`
+  (~39 MB) from the OpenCV model zoo — face recognition. Without them the HUD uses the Haar
+  cascade and shows no names. `tools/get_model.py faces` fetches just these.
 
 ### Distance calibration (once)
 
@@ -70,10 +76,25 @@ Say **"Hey Jarvis"** followed by a command in one breath, or say "Hey Jarvis", w
 | find the edges / sobel edges | `e` / `g` | | back to normal | `0` |
 | remove the background | `b` | | what can you do | `?` |
 | segment skin | `k` | | shut down | `q` / Esc |
-| enhance this | `a` | | | |
+| enhance this | `a` | | remember me | `u` |
+| | | | who am I | `w` |
+| | | | forget everyone | — |
+
+Say "Hey Jarvis" once; after any command he keeps listening for 8 s (the HUD shows
+`LISTENING`) so you can chain commands without repeating the wake word. Many phrasings are
+accepted ("draw this", "make it a cartoon", "blur this", "hide the background", "heat
+vision" …) — see `voice/commands.py`.
 
 One-shot effects freeze the frame for 3 s (any key dismisses early) and save the result to
 `captures/`. Snapshots print PNG vs JPEG sizes and PSNR.
+
+### Face recognition
+
+Say **"remember me"** (or press `u`) while your face is locked: JARVIS captures 8 samples,
+asks for your name in the terminal, and stores the embeddings in `faces.npz` (local,
+git-ignored). From then on the reticle shows your name, JARVIS greets you when you appear,
+and every "sir" becomes your name. "Who am I" reports who he sees; "forget everyone" wipes
+the database. Only enrol people who have agreed to it.
 
 ## Tests and tools
 
@@ -90,8 +111,9 @@ One-shot effects freeze the frame for 3 s (any key dismisses early) and save the
 ```
 main.py            loop: grab -> poll command -> dispatch -> HUD / frozen result -> show
 common/            types.py (Frame, Command, HUDState — the contract), config.py, jpeg.py
-hud/               detector (Haar), tracker (LK flow), overlay, radar, distance,
-                   nightvision, motion, engine
+hud/               detector (Haar), recognizer (YuNet + SFace + face DB), tracker (LK flow),
+                   theme (holographic compositor), frame (static furniture), overlay, radar,
+                   distance, nightvision, motion, engine
 voice/             listener (mic -> Vosk), wake (gate), commands (vocabulary + fuzzy match),
                    tts (pyttsx3 thread), interface
 effects/           one pure (frame, state) -> frame function per effect, registry.py
