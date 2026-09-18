@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import queue
+import re
 import time
 import traceback
 from datetime import datetime
@@ -150,13 +151,18 @@ class App:
     def primary_name(self) -> str:
         return self.state.names[0] if self.state.names else ""
 
+    def personalise(self, text: str) -> str:
+        """Replies are written with a "sir" placeholder: it becomes the recognised person's
+        name, or is dropped entirely when JARVIS doesn't know who is in front of him."""
+        if self.primary_name:
+            return re.sub(r"\bsir\b", self.primary_name, text)
+        return re.sub(r",?\s*\bsir\b", "", text)
+
     def say(self, text: str) -> None:
-        """Speak/print via the voice interface and show the line on the HUD for a moment.
-        "sir" becomes the recognised person's name when JARVIS knows who is in front of him."""
+        """Speak/print via the voice interface and show the line on the HUD for a moment."""
         if not text:
             return
-        if self.primary_name:
-            text = text.replace("sir", self.primary_name)
+        text = self.personalise(text)
         self.voice.say(text)
         self.notice = (text, time.monotonic() + NOTICE_SECONDS)
 
