@@ -71,6 +71,14 @@ def test_every_registered_effect_has_a_command() -> None:
         assert spec.kind is (CommandKind.TOGGLE if name == "thermal" else CommandKind.ONESHOT), name
 
 
+def test_unknown_words_require_exact_phrase() -> None:
+    assert commands.match("[unk] everyone") is None           # "good morning everyone"
+    assert commands.match("turn off the [unk]") is None       # "turn up the volume"
+    assert commands.match("hide the [unk]") is None
+    assert commands.match("[unk] find the edges").name == "edges"   # noise before a real command
+    assert commands.match("night vision [unk]").name == "night_vision"
+
+
 def test_scored_reports_phrase() -> None:
     cmd, score, phrase = commands.match_scored("find the edge is")
     assert cmd.name == "edges" and score >= commands.SCORE_CUTOFF and phrase == "find the edges"

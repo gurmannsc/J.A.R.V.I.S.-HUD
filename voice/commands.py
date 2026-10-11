@@ -122,8 +122,14 @@ def normalise(text: str) -> str:
 
 def match_scored(text: str) -> tuple[Command | None, float, str]:
     """(command or None, best score, best phrase) — handy for logging what STT produced."""
-    norm = normalise(text)
+    # "[unk]" means the recogniser heard words outside the grammar. Fuzzy-matching the
+    # leftover words is how "good morning everyone" became "forget everyone", so in that
+    # case only an exact known phrase is accepted.
+    partial_utterance = "[unk]" in text
+    norm = normalise(text.replace("[unk]", " "))
     if not norm:
+        return None, 0.0, ""
+    if partial_utterance and norm not in BY_NAME and norm not in _PHRASE_TO_SPEC:
         return None, 0.0, ""
     if norm in BY_NAME:
         return Command(norm, BY_NAME[norm].kind, text), 100.0, norm
