@@ -5,3 +5,4 @@ sounddevice>=0.4.6
 pyttsx3>=2.90
 rapidfuzz>=3.0
 pytest>=8.0
+matplotlib>=3.8          # report figures only (report/make_report_assets.py)
