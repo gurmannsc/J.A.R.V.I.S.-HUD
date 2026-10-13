@@ -8,3 +8,9 @@ assets/*.onnx
 calibration.json
 faces.npz
 PLAN.md
+
+# personal images / report sources stay local; only the report PDF is published
+docs/img/
+docs/coverage.md
+report/*
+!report/IVP_Report_Iron_Man_HUD.pdf

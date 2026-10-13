@@ -4,8 +4,6 @@ A voice-controlled, real-time webcam heads-up display built for an Image and Vid
 Processing course. Python + OpenCV. Say "Hey Jarvis, find the edges" and the HUD freezes
 the frame, runs the effect, and JARVIS talks back.
 
-![HUD](docs/img/hud_plain.jpg)
-
 - Live face detection with a targeting reticle, optical-flow tracking between detections,
   radar sweep, distance readout, night-vision and thermal modes, motion alert
 - Wake word + offline speech recognition (Vosk), fuzzy command matching, spoken replies
@@ -14,7 +12,8 @@ the frame, runs the effect, and JARVIS talks back.
 - One-shot image-processing effects: x-ray, sketch, cartoon, DFT spectrum, frequency-domain
   smooth/sharpen, Canny/Sobel edges, GrabCut background removal, HSV skin segmentation,
   histogram equalisation, thermal
-- Every feature maps to a syllabus unit — see [docs/coverage.md](docs/coverage.md)
+- Every feature maps to a syllabus unit — see the project report,
+  [report/IVP_Report_Iron_Man_HUD.pdf](report/IVP_Report_Iron_Man_HUD.pdf)
 
 ## Setup
 
@@ -103,7 +102,6 @@ the database. Only enrol people who have agreed to it.
 ```
 
 - `python -m effects.registry <image>` — dump every effect for an image into `captures/`
-- `python tools/make_coverage_images.py <image>` — regenerate `docs/img/`
 - `python tests/make_sample.py` — regenerate the synthetic test image
 
 ## Layout
@@ -117,7 +115,8 @@ hud/               detector (Haar), recognizer (YuNet + SFace + face DB), tracke
 voice/             listener (mic -> Vosk), wake (gate), commands (vocabulary + fuzzy match),
                    tts (pyttsx3 thread), interface
 effects/           one pure (frame, state) -> frame function per effect, registry.py
-docs/              coverage.md (syllabus mapping), demo.md (presentation script)
+docs/              demo.md (presentation script)
+report/            IVP_Report_Iron_Man_HUD.pdf (project report)
 tests/             pytest suite (effects contract, tracker, HUD, commands, wake gate)
 ```
 
