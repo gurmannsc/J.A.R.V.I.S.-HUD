@@ -122,8 +122,7 @@ tests/             pytest suite (effects contract, tracker, HUD, commands, wake 
 ```
 
 Design rule: every processing module takes a BGR `uint8` frame and returns one of the same
-shape. The voice thread talks to the video loop only through a queue. See `PLAN.md` for the
-full design.
+shape. The voice thread talks to the video loop only through a queue.
 
 ## Troubleshooting
 
