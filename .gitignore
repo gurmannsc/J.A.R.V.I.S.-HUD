@@ -7,3 +7,4 @@ assets/vosk-model-*/
 assets/*.onnx
 calibration.json
 faces.npz
+PLAN.md
